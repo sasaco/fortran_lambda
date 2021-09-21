@@ -1,0 +1,37 @@
+#!/bin/sh
+
+# カスタムランタイムで Lambda 関数を作成します。
+# この例には、bootstrap ファイルと関数バンドらの 2 つのファイルが含まれています。
+# いずれのファイルも Bash で実装されています。
+# ランタイムは、デプロイパッケージから関数スクリプトを読み込みます。
+# 2 つの変数を使用して、スクリプトを見つけます。
+# LAMBDA_TASK_ROOT は、パッケージが抽出された場所を変数に伝え、
+# _HANDLER には、そのスクリプトの名前が含まれます。
+
+# ハンドラ関数の読み込み
+set -euo pipefail
+
+# 実行バイナリ名
+# ハンドラが "fortran.実行バイナリ名" という想定で、ドット以下の文字列を取得する
+LM=$(echo "$_HANDLER" | cut -d. -f2)
+
+# 処理
+# スクリプトをロードしたら、ランタイムは、イベントをループ処理します。
+# ランタイム API を使用して、Lambda から呼び出しイベントを取得し、
+# そのイベントをハンドラに渡して、レスポンスを Lambda に戻します。
+# リクエスト ID を取得するには、API レスポンスのヘッダーを一時ファイルに保存し、
+# ファイルから Lambda-Runtime-Aws-Request-Id ヘッダーを読み込みます。
+while true; do
+  HEADERS="$(mktemp)"
+  # イベントの取得
+  EVENT_DATA=$(curl -sS -LD "$HEADERS" -X GET "http://${AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/next")
+  # Extract request ID by scraping response headers received above
+  REQUEST_ID=$(grep -Fi Lambda-Runtime-Aws-Request-Id "$HEADERS" | tr -d '[:space:]' | cut -d: -f2)
+
+  # ハンドラ関数の実行
+  RESPONSE="$(./$LM "$EVENT_DATA")"
+
+  # 結果を返却
+  curl -X POST "http://${AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime/invocation/$REQUEST_ID/response" -d "$RESPONSE"
+
+done
