@@ -17,7 +17,7 @@ RUN yum -y install gcc-gfortran glibc-static
 
 # build program
 # COPY json_matrix.f90 linear_eq.f90 /
-COPY hello.f90 /
+COPY app/* /
 
 
 # -c: コンパイルのみ。 実行可能ファイルを生成しません。
